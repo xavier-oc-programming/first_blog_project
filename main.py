@@ -1,16 +1,15 @@
 """
 Project: Day 71 — Deploying Web App
-Version: day71_blog_step_04
+Version: day71_blog_step_06
 File: main.py
 
 Description:
-This module defines the Flask application for the blog project in its
-deployment-ready state. It configures the app, initializes extensions
-(SQLAlchemy, Flask-Login, Bootstrap-Flask, CKEditor, and Gravatar),
-declares the User, BlogPost, and Comment models, and implements all routes
-required for authentication, blog post management, commenting, and static
-pages. The routing layer renders Jinja templates and enforces permission
-rules such as admin-only actions and comment ownership.
+This module defines the Flask application for the blog project in its hosted
+deployment context. The application code remains unchanged and continues to
+configure the app, initialize extensions (SQLAlchemy, Flask-Login,
+Bootstrap-Flask, CKEditor, and Gravatar), declare database models, and implement
+all routes required for authentication, blog post management, commenting, and
+static pages.
 
 ---------------------------------------------------------------------------
 Summary of Previous Steps
@@ -28,24 +27,36 @@ Step 03 — Environment variables:
 Replaced all hardcoded secrets and configuration values with environment
 variables to ensure security and production compatibility.
 
+Step 04 — WSGI server configuration:
+Prepared the application for production execution by configuring gunicorn as
+the WSGI server and ensuring the app can be started via `main:app`.
+
+Step 05 — Remote repository setup:
+Pushed the deployment-ready application to GitHub and established branch-based
+tracking for deployment steps.
+
 ---------------------------------------------------------------------------
-Changes in Step 04
+Changes in Step 06
 ---------------------------------------------------------------------------
 
-This step prepares the application for production execution:
+This step introduces no changes to the application code. It focuses on hosting
+infrastructure setup by:
 
-• The Flask app is now designed to be served by a WSGI server (gunicorn)
-• The application object is exposed as `app` for WSGI import (`main:app`)
-• Debug mode is disabled for production use
-• The execution model now follows hosting provider conventions rather than
-  Flask’s built-in development server
+• Connecting the GitHub repository to a hosting provider (Render)
+• Defining build and start commands for production execution
+• Configuring required environment variables on the hosting platform
+• Deploying the application using a WSGI server in a hosted environment
 
+The Flask application logic and structure remain unchanged.
 ---------------------------------------------------------------------------
 """
 
 
 
 import os
+from dotenv import load_dotenv
+
+load_dotenv()
 
 # Standard library imports for dates and decorators.
 from datetime import date
@@ -166,12 +177,9 @@ with app.app_context():
 # Decorator to enforce admin-only access.
 def admin_only(func):
     """
-    Project: Blog From Day 69
-    File: main.py
-    Description:
-    Guard for admin-only routes that allows access only to the first registered
-    user (id == 1). Any other user, or unauthenticated requests, receive a 403
-    Forbidden response to prevent unauthorized post management.
+    Step 5 focuses on pushing your local commits to GitHub, but this guard
+    remains part of the application routing layer while you verify the repo
+    state and publish the correct branch with `git push -u origin <branch>`.
     """
     @wraps(func)
     def wrapper(*args, **kwargs):
