@@ -1,15 +1,49 @@
 """
-Project: Blog From Day 69
+Project: Day 71 — Deploying Web App
+Version: day71_blog_step_04
 File: main.py
+
 Description:
-This module defines the Flask application for the blog project, including
-configuration, database models, authentication, and HTTP routes. It wires up
-extensions (SQLAlchemy, Flask-Login, Bootstrap5, CKEditor, and Gravatar),
-declares the User, BlogPost, and Comment tables with their relationships, and
-implements the full set of routes for registration, login/logout, post CRUD,
-comment creation/editing/deletion, and static pages. The routing layer renders
-Jinja templates and enforces admin-only and comment-owner permissions.
+This module defines the Flask application for the blog project in its
+deployment-ready state. It configures the app, initializes extensions
+(SQLAlchemy, Flask-Login, Bootstrap-Flask, CKEditor, and Gravatar),
+declares the User, BlogPost, and Comment models, and implements all routes
+required for authentication, blog post management, commenting, and static
+pages. The routing layer renders Jinja templates and enforces permission
+rules such as admin-only actions and comment ownership.
+
+---------------------------------------------------------------------------
+Summary of Previous Steps
+---------------------------------------------------------------------------
+
+Step 01 — .gitignore:
+Excluded environment files, caches, virtual environments, databases, IDE
+metadata, and OS-specific files from version control.
+
+Step 02 — Git version control:
+Initialized the project under Git and established a clean baseline for
+step-by-step deployment tracking.
+
+Step 03 — Environment variables:
+Replaced all hardcoded secrets and configuration values with environment
+variables to ensure security and production compatibility.
+
+---------------------------------------------------------------------------
+Changes in Step 04
+---------------------------------------------------------------------------
+
+This step prepares the application for production execution:
+
+• The Flask app is now designed to be served by a WSGI server (gunicorn)
+• The application object is exposed as `app` for WSGI import (`main:app`)
+• Debug mode is disabled for production use
+• The execution model now follows hosting provider conventions rather than
+  Flask’s built-in development server
+
+---------------------------------------------------------------------------
 """
+
+
 
 import os
 
