@@ -1,16 +1,8 @@
-<!--
-Project: Blog From Day 69
-File: about.html
-Description: About page template with static content and header.
--->
-<!-- Shared site header and navigation -->
-{% include "header.html" %}
+{% extends "base.html" %}
 
-<!-- About page hero header with background image and title -->
-<header
-  class="masthead"
-  style="background-image: url('../static/assets/img/about-bg.jpg')"
->
+{% block content %}
+<!-- Page Header -->
+<header class="masthead" style="background-image: url('{{ url_for('static', filename='assets/img/about-bg.jpg') }}')">
   <div class="container position-relative px-4 px-lg-5">
     <div class="row gx-4 gx-lg-5 justify-content-center">
       <div class="col-md-10 col-lg-8 col-xl-7">
@@ -23,7 +15,7 @@ Description: About page template with static content and header.
   </div>
 </header>
 
-<!-- About page body content -->
+<!-- Main Content -->
 <main class="mb-4">
   <div class="container px-4 px-lg-5">
     <div class="row gx-4 gx-lg-5 justify-content-center">
@@ -50,6 +42,4 @@ Description: About page template with static content and header.
     </div>
   </div>
 </main>
-
-<!-- Shared site footer -->
-{% include "footer.html" %}
+{% endblock %}

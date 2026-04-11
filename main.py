@@ -1,193 +1,59 @@
-"""
-Project: Day 71 — Deploying Web App
-Version: day71_blog_step_06
-File: main.py
-
-Description:
-This module defines the Flask application for the blog project in its hosted
-deployment context. The application code remains unchanged and continues to
-configure the app, initialize extensions (SQLAlchemy, Flask-Login,
-Bootstrap-Flask, CKEditor, and Gravatar), declare database models, and implement
-all routes required for authentication, blog post management, commenting, and
-static pages.
-
----------------------------------------------------------------------------
-Summary of Previous Steps
----------------------------------------------------------------------------
-
-Step 01 — .gitignore:
-Excluded environment files, caches, virtual environments, databases, IDE
-metadata, and OS-specific files from version control.
-
-Step 02 — Git version control:
-Initialized the project under Git and established a clean baseline for
-step-by-step deployment tracking.
-
-Step 03 — Environment variables:
-Replaced all hardcoded secrets and configuration values with environment
-variables to ensure security and production compatibility.
-
-Step 04 — WSGI server configuration:
-Prepared the application for production execution by configuring gunicorn as
-the WSGI server and ensuring the app can be started via `main:app`.
-
-Step 05 — Remote repository setup:
-Pushed the deployment-ready application to GitHub and established branch-based
-tracking for deployment steps.
-
----------------------------------------------------------------------------
-Changes in Step 06
----------------------------------------------------------------------------
-
-This step introduces no changes to the application code. It focuses on hosting
-infrastructure setup by:
-
-• Connecting the GitHub repository to a hosting provider (Render)
-• Defining build and start commands for production execution
-• Configuring required environment variables on the hosting platform
-• Deploying the application using a WSGI server in a hosted environment
-
-The Flask application logic and structure remain unchanged.
----------------------------------------------------------------------------
-"""
-
-
-
-import os
-from dotenv import load_dotenv
-
-load_dotenv()
-
-# Standard library imports for dates and decorators.
 from datetime import date
 from functools import wraps
 
-# Third-party imports for Flask, extensions, and utilities.
 from flask import Flask, abort, render_template, redirect, url_for, flash
 from flask_bootstrap import Bootstrap5
 from flask_ckeditor import CKEditor
 from flask_gravatar import Gravatar
-from flask_login import UserMixin, login_user, LoginManager, current_user, logout_user
-from flask_sqlalchemy import SQLAlchemy
-from werkzeug.security import generate_password_hash, check_password_hash
+from flask_login import LoginManager, current_user
 
-# SQLAlchemy core and ORM helpers for models and relationships.
-from sqlalchemy import Integer, String, Text, ForeignKey
-from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
+import config
+from auth import auth_bp
+from forms import CommentForm, CreatePostForm
+from models import BlogPost, Comment, User, db
 
-# Local form classes used by the route handlers.
-from forms import CreatePostForm, RegisterForm, LoginForm, CommentForm
-
-
-# Create the Flask application and configure its secret key.
 app = Flask(__name__)
-app.config["SECRET_KEY"] = "8BYkEfBA6O6donzWlSihBXox7C0sKR6b"
+app.config["SECRET_KEY"] = config.SECRET_KEY
+app.config["SQLALCHEMY_DATABASE_URI"] = config.DB_URI
 
-# Initialize UI and editor extensions.
 ckeditor = CKEditor(app)
 Bootstrap5(app)
 
-# Configure session-based login management.
+db.init_app(app)
+
 login_manager = LoginManager()
 login_manager.init_app(app)
 
-# Configure Gravatar so comments display user avatars.
 gravatar = Gravatar(
     app,
     size=100,
     rating="g",
     default="retro",
-    force_default=False
+    force_default=False,
 )
-
-# Make the gravatar helper available inside Jinja templates.
 app.jinja_env.globals["gravatar"] = gravatar
 
+app.register_blueprint(auth_bp)
 
-# Base class for SQLAlchemy models.
-class Base(DeclarativeBase):
-    pass
-
-
-# Configure and initialize the database connection.
-app.config["SQLALCHEMY_DATABASE_URI"] = "sqlite:///posts.db"
-db = SQLAlchemy(model_class=Base)
-db.init_app(app)
+with app.app_context():
+    db.create_all()
 
 
-# Blog post model with author and comment relationships.
-class BlogPost(db.Model):
-    __tablename__ = "blog_posts"
-
-    id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    title: Mapped[str] = mapped_column(String(250), unique=True, nullable=False)
-    subtitle: Mapped[str] = mapped_column(String(250), nullable=False)
-    date: Mapped[str] = mapped_column(String(250), nullable=False)
-
-    body: Mapped[str] = mapped_column(Text, nullable=False)
-    img_url: Mapped[str] = mapped_column(String(250), nullable=False)
-
-    author_id: Mapped[int] = mapped_column(Integer, ForeignKey("users.id"), nullable=False)
-    author = relationship("User", back_populates="posts")
-
-    comments = relationship("Comment", back_populates="parent_post")
-
-
-# User model for authentication and authored content.
-class User(UserMixin, db.Model):
-    __tablename__ = "users"
-
-    id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    email: Mapped[str] = mapped_column(String(100), unique=True, nullable=False)
-    password: Mapped[str] = mapped_column(String(200), nullable=False)
-    name: Mapped[str] = mapped_column(String(100), nullable=False)
-
-    posts = relationship("BlogPost", back_populates="author")
-    comments = relationship("Comment", back_populates="author")
-
-
-# Comment model tied to both a user and a blog post.
-class Comment(db.Model):
-    __tablename__ = "comments"
-
-    id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    text: Mapped[str] = mapped_column(Text, nullable=False)
-
-    author_id: Mapped[int] = mapped_column(Integer, ForeignKey("users.id"), nullable=False)
-    author = relationship("User", back_populates="comments")
-
-    post_id: Mapped[int] = mapped_column(Integer, ForeignKey("blog_posts.id"), nullable=False)
-    parent_post = relationship("BlogPost", back_populates="comments")
-
-
-# Register the user loader callback for Flask-Login.
 @login_manager.user_loader
 def load_user(user_id):
     return db.session.get(User, int(user_id))
 
 
-# Ensure the database tables exist on startup.
-with app.app_context():
-    db.create_all()
-
-
-# Decorator to enforce admin-only access.
 def admin_only(func):
-    """
-    Step 5 focuses on pushing your local commits to GitHub, but this guard
-    remains part of the application routing layer while you verify the repo
-    state and publish the correct branch with `git push -u origin <branch>`.
-    """
+    """Restrict access to user id == 1 (first registered user is admin)."""
     @wraps(func)
     def wrapper(*args, **kwargs):
         if current_user.is_authenticated and current_user.id == 1:
             return func(*args, **kwargs)
         return abort(403)
-
     return wrapper
 
 
-# Helper to verify the current user owns a comment or is admin.
 def comment_owner_or_admin(comment: Comment) -> bool:
     return (
         current_user.is_authenticated
@@ -195,81 +61,12 @@ def comment_owner_or_admin(comment: Comment) -> bool:
     )
 
 
-# Registration route: create a new user account.
-@app.route("/register", methods=["GET", "POST"])
-def register():
-    form = RegisterForm()
-
-    if form.validate_on_submit():
-        existing_user = db.session.execute(
-            db.select(User).where(User.email == form.email.data)
-        ).scalar_one_or_none()
-
-        if existing_user:
-            flash("You've already signed up with that email. Log in instead.")
-            return redirect(url_for("login"))
-
-        hashed_password = generate_password_hash(
-            form.password.data,
-            method="pbkdf2:sha256",
-            salt_length=8
-        )
-
-        new_user = User(
-            email=form.email.data,
-            password=hashed_password,
-            name=form.name.data
-        )
-
-        db.session.add(new_user)
-        db.session.commit()
-
-        login_user(new_user)
-        return redirect(url_for("get_all_posts"))
-
-    return render_template("register.html", form=form)
-
-
-# Login route: authenticate existing users.
-@app.route("/login", methods=["GET", "POST"])
-def login():
-    form = LoginForm()
-
-    if form.validate_on_submit():
-        user = db.session.execute(
-            db.select(User).where(User.email == form.email.data)
-        ).scalar_one_or_none()
-
-        if not user:
-            flash("That email does not exist, please try again.")
-            return redirect(url_for("login"))
-
-        if not check_password_hash(user.password, form.password.data):
-            flash("Password incorrect, please try again.")
-            return redirect(url_for("login"))
-
-        login_user(user)
-        return redirect(url_for("get_all_posts"))
-
-    return render_template("login.html", form=form)
-
-
-# Logout route: clear the user session.
-@app.route("/logout")
-def logout():
-    logout_user()
-    return redirect(url_for("get_all_posts"))
-
-
-# Home route: list all blog posts.
 @app.route("/")
 def get_all_posts():
-    result = db.session.execute(db.select(BlogPost))
-    posts = result.scalars().all()
+    posts = db.session.execute(db.select(BlogPost)).scalars().all()
     return render_template("index.html", all_posts=posts)
 
 
-# Post detail route: display a post and handle new comments.
 @app.route("/post/<int:post_id>", methods=["GET", "POST"])
 def show_post(post_id):
     requested_post = db.get_or_404(BlogPost, post_id)
@@ -278,12 +75,12 @@ def show_post(post_id):
     if form.validate_on_submit():
         if not current_user.is_authenticated:
             flash("You need to login or register to comment.")
-            return redirect(url_for("login"))
+            return redirect(url_for("auth.login"))
 
         new_comment = Comment(
             text=form.comment_text.data,
             author=current_user,
-            parent_post=requested_post
+            parent_post=requested_post,
         )
         db.session.add(new_comment)
         db.session.commit()
@@ -292,12 +89,11 @@ def show_post(post_id):
     return render_template("post.html", post=requested_post, form=form)
 
 
-# Comment edit route: allow owners/admin to update comment text.
 @app.route("/edit-comment/<int:comment_id>", methods=["GET", "POST"])
 def edit_comment(comment_id):
     if not current_user.is_authenticated:
         flash("You need to login to edit comments.")
-        return redirect(url_for("login"))
+        return redirect(url_for("auth.login"))
 
     comment = db.get_or_404(Comment, comment_id)
 
@@ -311,17 +107,15 @@ def edit_comment(comment_id):
         db.session.commit()
         return redirect(url_for("show_post", post_id=comment.post_id))
 
-    # Pre-fill the editor on GET
     form.comment_text.data = comment.text
     return render_template("edit-comment.html", form=form, comment=comment)
 
 
-# Comment delete route: allow owners/admin to remove a comment.
 @app.route("/delete-comment/<int:comment_id>")
 def delete_comment(comment_id):
     if not current_user.is_authenticated:
         flash("You need to login to delete comments.")
-        return redirect(url_for("login"))
+        return redirect(url_for("auth.login"))
 
     comment = db.get_or_404(Comment, comment_id)
 
@@ -334,7 +128,6 @@ def delete_comment(comment_id):
     return redirect(url_for("show_post", post_id=post_id))
 
 
-# New post route: admin-only post creation.
 @app.route("/new-post", methods=["GET", "POST"])
 @admin_only
 def add_new_post():
@@ -347,7 +140,7 @@ def add_new_post():
             body=form.body.data,
             img_url=form.img_url.data,
             date=date.today().strftime("%B %d, %Y"),
-            author=current_user
+            author=current_user,
         )
         db.session.add(new_post)
         db.session.commit()
@@ -356,7 +149,6 @@ def add_new_post():
     return render_template("make-post.html", form=form)
 
 
-# Edit post route: admin-only updates to existing posts.
 @app.route("/edit-post/<int:post_id>", methods=["GET", "POST"])
 @admin_only
 def edit_post(post_id):
@@ -366,7 +158,7 @@ def edit_post(post_id):
         title=post.title,
         subtitle=post.subtitle,
         img_url=post.img_url,
-        body=post.body
+        body=post.body,
     )
 
     if edit_form.validate_on_submit():
@@ -380,7 +172,6 @@ def edit_post(post_id):
     return render_template("make-post.html", form=edit_form, is_edit=True)
 
 
-# Delete post route: admin-only removal of posts.
 @app.route("/delete/<int:post_id>")
 @admin_only
 def delete_post(post_id):
@@ -390,18 +181,15 @@ def delete_post(post_id):
     return redirect(url_for("get_all_posts"))
 
 
-# Static about page.
 @app.route("/about")
 def about():
     return render_template("about.html")
 
 
-# Static contact page.
 @app.route("/contact")
 def contact():
     return render_template("contact.html")
 
 
-# Development entry point.
 if __name__ == "__main__":
     app.run(debug=True, port=5002)
